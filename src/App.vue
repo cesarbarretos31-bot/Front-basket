@@ -132,6 +132,7 @@ const saveBasket = async () => {
         }))
       }
     };
+    console.log('Saving payload', payload);
 
     await api.post('/basket', payload);
     showNotification(`🎉 Cesta ${currentBasket.value && currentBasket.value.userName === userName ? 'actualizada' : 'guardada'} correctamente para ${userName}.`, false);
@@ -141,7 +142,8 @@ const saveBasket = async () => {
     resetForm();
   } catch (error) {
     console.error('Error al guardar la cesta:', error);
-    showNotification('❌ Error al guardar la cesta. Revisa los datos o intenta de nuevo.', true);
+    const serverMsg = error?.response?.data || error?.message || 'Error desconocido';
+    showNotification(`❌ Error al guardar la cesta: ${JSON.stringify(serverMsg)}`, true);
   } finally {
     isSaving.value = false;
   }
@@ -426,6 +428,7 @@ button:disabled {
 .container {
   max-width: 1100px;
   margin: 0 auto;
+  padding: 0 12px;
 }
 
 .header {
@@ -649,7 +652,7 @@ input:focus {
 
 .item-row {
   display: grid;
-  grid-template-columns: 1.2fr 1.4fr 0.8fr 0.9fr 0.8fr auto;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 8px;
   align-items: center;
   margin-bottom: 10px;
