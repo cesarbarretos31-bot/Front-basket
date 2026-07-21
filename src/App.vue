@@ -11,6 +11,18 @@ const isSaving = ref(false);
 const currentPage = ref(1);
 const pageSize = 5;
 
+const generateProductId = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
+    const randomNumber = Math.floor(Math.random() * 16);
+    const value = char === 'x' ? randomNumber : (randomNumber % 4) + 8;
+    return value.toString(16);
+  });
+};
+
 const createEmptyItem = () => ({
   productId: generateProductId(),
   productName: '',
@@ -24,10 +36,10 @@ const form = ref({
   items: [createEmptyItem()]
 });
 
-const totalItems = computed(() => currentBasket.value?.items?.length || 0);
+const totalItems = computed(() => currentBasket.value && currentBasket.value.items ? currentBasket.value.items.length : 0);
 const totalPages = computed(() => Math.max(1, Math.ceil(totalItems.value / pageSize)));
 const paginatedItems = computed(() => {
-  const items = currentBasket.value?.items || [];
+  const items = currentBasket.value && currentBasket.value.items ? currentBasket.value.items : [];
   const start = (currentPage.value - 1) * pageSize;
   return items.slice(start, start + pageSize);
 });
@@ -35,18 +47,6 @@ const paginatedItems = computed(() => {
 const formatCurrency = (value) => {
   const numericValue = Number(value || 0);
   return numericValue.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
-};
-
-const generateProductId = () => {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
-    const randomNumber = Math.floor(Math.random() * 16);
-    const value = char === 'x' ? randomNumber : (randomNumber % 4) + 8;
-    return value.toString(16);
-  });
 };
 
 const resetForm = () => {

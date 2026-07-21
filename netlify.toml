@@ -1,0 +1,11 @@
+[build]
+  base = "front-basket"
+  command = "npm run build"
+  publish = "dist"
+
+# Single Page App rewrite so client-side routing works
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+  force = true
