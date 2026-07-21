@@ -134,9 +134,11 @@ const saveBasket = async () => {
     };
 
     await api.post('/basket', payload);
-    showNotification(`🎉 Cesta ${currentBasket.value?.userName === userName ? 'actualizada' : 'guardada'} correctamente para ${userName}.`, false);
+    showNotification(`🎉 Cesta ${currentBasket.value && currentBasket.value.userName === userName ? 'actualizada' : 'guardada'} correctamente para ${userName}.`, false);
     userNameSearch.value = userName;
     await fetchBasket();
+    // Limpiar el formulario después de guardar para UX clara
+    resetForm();
   } catch (error) {
     console.error('Error al guardar la cesta:', error);
     showNotification('❌ Error al guardar la cesta. Revisa los datos o intenta de nuevo.', true);
@@ -233,7 +235,7 @@ const changePage = (page) => {
       <div class="stats-grid">
         <div class="stat-card">
           <span class="stat-label">Usuario consultado</span>
-          <strong>{{ currentBasket?.userName || '—' }}</strong>
+          <strong>{{ (currentBasket && currentBasket.userName) || '—' }}</strong>
         </div>
         <div class="stat-card">
           <span class="stat-label">Productos activos</span>
@@ -241,7 +243,7 @@ const changePage = (page) => {
         </div>
         <div class="stat-card">
           <span class="stat-label">Valor total</span>
-          <strong>{{ formatCurrency(calculateTotal(currentBasket?.items)) }}</strong>
+          <strong>{{ formatCurrency(calculateTotal(currentBasket && currentBasket.items)) }}</strong>
         </div>
       </div>
 
