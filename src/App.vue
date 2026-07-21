@@ -11,9 +11,17 @@ const isSaving = ref(false);
 const currentPage = ref(1);
 const pageSize = 5;
 
+const createEmptyItem = () => ({
+  productId: generateProductId(),
+  productName: '',
+  quantity: 1,
+  price: 0,
+  color: 'Black'
+});
+
 const form = ref({
   userName: '',
-  items: [{ productId: '', productName: '', quantity: 1, price: 0, color: 'Black' }]
+  items: [createEmptyItem()]
 });
 
 const totalItems = computed(() => currentBasket.value?.items?.length || 0);
@@ -29,35 +37,28 @@ const formatCurrency = (value) => {
   return numericValue.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
 };
 
+const generateProductId = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
+    const randomNumber = Math.floor(Math.random() * 16);
+    const value = char === 'x' ? randomNumber : (randomNumber % 4) + 8;
+    return value.toString(16);
+  });
+};
+
 const resetForm = () => {
   form.value = {
     userName: '',
-    items: [{ productId: '', productName: '', quantity: 1, price: 0, color: 'Black' }]
+    items: [createEmptyItem()]
   };
 };
 
-const populateFormFromBasket = (basket) => {
-  const safeItems = Array.isArray(basket?.items) && basket.items.length > 0
-    ? basket.items
-    : [{ productId: '', productName: '', quantity: 1, price: 0, color: 'Black' }];
-
-  form.value = {
-    userName: basket?.userName || '',
-    items: safeItems.map((item) => ({
-      productId: item.productId || '',
-      productName: item.productName || '',
-      quantity: Number(item.quantity || 1),
-      price: Number(item.price || 0),
-      color: item.color || 'Black'
-    }))
-  };
-};
-
-watch(currentBasket, (basket) => {
+watch(currentBasket, () => {
   currentPage.value = 1;
-  if (basket) {
-    populateFormFromBasket(basket);
-  } else {
+  if (!currentBasket.value) {
     resetForm();
   }
 });
@@ -86,19 +87,19 @@ const fetchBasket = async () => {
 };
 
 const addItemField = () => {
-  form.value.items.push({ productId: '', productName: '', quantity: 1, price: 0, color: 'Black' });
+  form.value.items.push(createEmptyItem());
 };
 
 const removeItemField = (index) => {
   form.value.items.splice(index, 1);
   if (form.value.items.length === 0) {
-    form.value.items.push({ productId: '', productName: '', quantity: 1, price: 0, color: 'Black' });
+    form.value.items.push(createEmptyItem());
   }
 };
 
 const saveBasket = async () => {
   const userName = form.value.userName.trim();
-  const items = form.value.items.filter((item) => item.productId || item.productName || item.color);
+  const items = form.value.items.filter((item) => item.productName || item.color || item.quantity > 0);
 
   if (!userName) {
     showNotification('⚠️ El nombre de usuario es obligatorio.', true);
@@ -110,7 +111,7 @@ const saveBasket = async () => {
     return;
   }
 
-  const invalidItems = items.some((item) => !item.productId || !item.productName || !item.color || Number(item.quantity) < 1 || Number(item.price) < 0);
+  const invalidItems = items.some((item) => !item.productName || !item.color || Number(item.quantity) < 1 || Number(item.price) < 0);
   if (invalidItems) {
     showNotification('⚠️ Revisa que todos los campos estén completos y válidos.', true);
     return;
@@ -123,7 +124,7 @@ const saveBasket = async () => {
       cart: {
         userName,
         items: items.map((item) => ({
-          productId: item.productId,
+          productId: item.productId || generateProductId(),
           productName: item.productName,
           quantity: parseInt(item.quantity, 10),
           price: parseFloat(item.price),
@@ -188,7 +189,6 @@ const removeBasketItem = async (index) => {
       ...currentBasket.value,
       items: updatedItems
     };
-    populateFormFromBasket(currentBasket.value);
     showNotification('🗑️ Producto eliminado de la cesta.', false);
   } catch (error) {
     console.error('Error al eliminar el producto:', error);
@@ -265,7 +265,6 @@ const changePage = (page) => {
         <div class="card-header flex-between">
           <h3>🛍️ Cesta de <span class="highlight-user">{{ currentBasket.userName }}</span></h3>
           <div class="card-actions">
-            <button class="btn btn-outline" type="button" @click="populateFormFromBasket(currentBasket)">Editar cesta</button>
             <button class="btn-icon btn-delete" @click="deleteBasket(currentBasket.userName)" title="Eliminar cesta completa">🗑️</button>
           </div>
         </div>
@@ -320,8 +319,7 @@ const changePage = (page) => {
 
       <div class="card premium-shadow highlight-card">
         <div class="card-header flex-between">
-          <h3>{{ currentBasket ? '✏️ Agregar o editar productos' : '✨ Crear o actualizar cesta' }}</h3>
-          <button v-if="currentBasket" class="btn btn-outline" type="button" @click="populateFormFromBasket(currentBasket)">Cargar datos actuales</button>
+          <h3>{{ currentBasket ? '➕ Agregar productos' : '✨ Crear o actualizar cesta' }}</h3>
         </div>
 
         <form @submit.prevent="saveBasket" class="grid-form-basket">
@@ -340,7 +338,7 @@ const changePage = (page) => {
             <div v-for="(item, index) in form.items" :key="index" class="item-row">
               <div class="input-group">
                 <label class="field-label">ID del producto</label>
-                <input v-model="item.productId" type="text" placeholder="Ej. 001A" required />
+                <input v-model="item.productId" type="text" :placeholder="item.productId || 'Se genera automáticamente'" readonly />
               </div>
               <div class="input-group">
                 <label class="field-label">Nombre del producto</label>
@@ -842,6 +840,11 @@ input:focus {
 
   .item-row {
     grid-template-columns: 1fr;
+  }
+
+  .card-actions {
+    width: 100%;
+    justify-content: flex-end;
   }
 
   .pagination-bar {
