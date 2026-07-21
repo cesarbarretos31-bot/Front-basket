@@ -122,6 +122,7 @@ const saveBasket = async () => {
   try {
     const payload = {
       cart: {
+        id: generateProductId(),
         userName,
         items: items.map((item) => ({
           productId: item.productId || generateProductId(),
@@ -138,7 +139,6 @@ const saveBasket = async () => {
     showNotification(`🎉 Cesta ${currentBasket.value && currentBasket.value.userName === userName ? 'actualizada' : 'guardada'} correctamente para ${userName}.`, false);
     userNameSearch.value = userName;
     await fetchBasket();
-    // Limpiar el formulario después de guardar para UX clara
     resetForm();
   } catch (error) {
     console.error('Error al guardar la cesta:', error);
@@ -515,15 +515,7 @@ button:disabled {
   margin-bottom: 20px;
   border: 1px solid var(--border-light);
   backdrop-filter: blur(12px);
-}
-
-.premium-shadow {
-  box-shadow: 0 18px 45px rgba(2, 6, 23, 0.28);
-}
-
-.highlight-card {
   position: relative;
-  overflow: hidden;
 }
 
 .highlight-card::before {
@@ -532,6 +524,8 @@ button:disabled {
   inset: 0 0 auto 0;
   height: 4px;
   background: linear-gradient(90deg, var(--primary), var(--accent));
+  border-top-left-radius: 18px;
+  border-top-right-radius: 18px;
 }
 
 .card-header {
@@ -652,10 +646,17 @@ input:focus {
 
 .item-row {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: 1fr 1.5fr 0.8fr 0.8fr 1fr auto;
   gap: 8px;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.btn-add-item {
+  margin-top: 8px;
+  width: 100%;
 }
 
 .btn {
@@ -820,6 +821,22 @@ input:focus {
   color: var(--text-muted);
 }
 
+@media (max-width: 1024px) {
+  .item-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    background: rgba(255, 255, 255, 0.02);
+    padding: 12px;
+    border-radius: 10px;
+    position: relative;
+  }
+  
+  .item-row .btn-delete {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+  }
+}
+
 @media (max-width: 900px) {
   .stats-grid {
     grid-template-columns: 1fr;
@@ -845,11 +862,20 @@ input:focus {
 
   .item-row {
     grid-template-columns: 1fr;
+    padding-top: 36px;
   }
 
   .card-actions {
     width: 100%;
     justify-content: flex-end;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .product-table th,
+  .product-table td {
+    padding: 10px 8px;
+    font-size: 0.82rem;
   }
 
   .pagination-bar {
@@ -866,9 +892,10 @@ input:focus {
     align-items: flex-start;
   }
 
-  .card-actions {
-    flex-direction: column;
-    align-items: flex-start;
+  .btn-action,
+  .btn-outline,
+  .btn-primary {
+    width: 100%;
   }
 }
 
