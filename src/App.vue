@@ -13,9 +13,7 @@ const pageSize = 5;
 
 const form = ref({
   userName: '',
-  items: [
-    { productId: '', productName: '', quantity: 1, price: 0, color: 'Black' }
-  ]
+  items: [{ productId: '', productName: '', quantity: 1, price: 0, color: 'Black' }]
 });
 
 const totalItems = computed(() => currentBasket.value?.items?.length || 0);
@@ -38,8 +36,30 @@ const resetForm = () => {
   };
 };
 
-watch(currentBasket, () => {
+const populateFormFromBasket = (basket) => {
+  const safeItems = Array.isArray(basket?.items) && basket.items.length > 0
+    ? basket.items
+    : [{ productId: '', productName: '', quantity: 1, price: 0, color: 'Black' }];
+
+  form.value = {
+    userName: basket?.userName || '',
+    items: safeItems.map((item) => ({
+      productId: item.productId || '',
+      productName: item.productName || '',
+      quantity: Number(item.quantity || 1),
+      price: Number(item.price || 0),
+      color: item.color || 'Black'
+    }))
+  };
+};
+
+watch(currentBasket, (basket) => {
   currentPage.value = 1;
+  if (basket) {
+    populateFormFromBasket(basket);
+  } else {
+    resetForm();
+  }
 });
 
 const fetchBasket = async () => {
@@ -71,6 +91,9 @@ const addItemField = () => {
 
 const removeItemField = (index) => {
   form.value.items.splice(index, 1);
+  if (form.value.items.length === 0) {
+    form.value.items.push({ productId: '', productName: '', quantity: 1, price: 0, color: 'Black' });
+  }
 };
 
 const saveBasket = async () => {
@@ -110,9 +133,8 @@ const saveBasket = async () => {
     };
 
     await api.post('/basket', payload);
-    showNotification(`🎉 Cesta guardada exitosamente para ${userName}.`, false);
+    showNotification(`🎉 Cesta ${currentBasket.value?.userName === userName ? 'actualizada' : 'guardada'} correctamente para ${userName}.`, false);
     userNameSearch.value = userName;
-    resetForm();
     await fetchBasket();
   } catch (error) {
     console.error('Error al guardar la cesta:', error);
@@ -134,6 +156,43 @@ const deleteBasket = async (userName) => {
       console.error('Error al eliminar la cesta:', error);
       showNotification('❌ No se pudo eliminar la cesta.', true);
     }
+  }
+};
+
+const removeBasketItem = async (index) => {
+  if (!currentBasket.value) return;
+
+  const updatedItems = [...currentBasket.value.items];
+  updatedItems.splice(index, 1);
+
+  if (updatedItems.length === 0) {
+    await deleteBasket(currentBasket.value.userName);
+    return;
+  }
+
+  try {
+    await api.post('/basket', {
+      cart: {
+        userName: currentBasket.value.userName,
+        items: updatedItems.map((item) => ({
+          productId: item.productId,
+          productName: item.productName,
+          quantity: Number(item.quantity || 1),
+          price: Number(item.price || 0),
+          color: item.color || 'Black'
+        }))
+      }
+    });
+
+    currentBasket.value = {
+      ...currentBasket.value,
+      items: updatedItems
+    };
+    populateFormFromBasket(currentBasket.value);
+    showNotification('🗑️ Producto eliminado de la cesta.', false);
+  } catch (error) {
+    console.error('Error al eliminar el producto:', error);
+    showNotification('❌ No se pudo eliminar el producto.', true);
   }
 };
 
@@ -192,7 +251,9 @@ const changePage = (page) => {
         </div>
         <div class="search-controls">
           <div class="input-group">
+            <label class="field-label">Nombre de usuario</label>
             <input v-model="userNameSearch" type="text" placeholder="Ej. swn" @keyup.enter="fetchBasket" />
+            <small class="field-help">Escribe el nombre exacto del usuario para encontrar su carrito.</small>
           </div>
           <button class="btn btn-primary" @click="fetchBasket" :disabled="isLoading">
             {{ isLoading ? 'Buscando...' : 'Buscar cesta' }}
@@ -203,7 +264,10 @@ const changePage = (page) => {
       <div class="card premium-shadow" v-if="currentBasket">
         <div class="card-header flex-between">
           <h3>🛍️ Cesta de <span class="highlight-user">{{ currentBasket.userName }}</span></h3>
-          <button class="btn-icon btn-delete" @click="deleteBasket(currentBasket.userName)" title="Eliminar cesta completa">🗑️</button>
+          <div class="card-actions">
+            <button class="btn btn-outline" type="button" @click="populateFormFromBasket(currentBasket)">Editar cesta</button>
+            <button class="btn-icon btn-delete" @click="deleteBasket(currentBasket.userName)" title="Eliminar cesta completa">🗑️</button>
+          </div>
         </div>
 
         <div class="table-responsive">
@@ -215,10 +279,11 @@ const changePage = (page) => {
                 <th>Cantidad</th>
                 <th>Precio unit.</th>
                 <th class="text-right">Subtotal</th>
+                <th class="text-right">Acción</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="item in paginatedItems" :key="`${item.productId}-${item.productName}`" class="table-row">
+              <tr v-for="(item, index) in paginatedItems" :key="`${item.productId}-${item.productName}`" class="table-row">
                 <td>
                   <div class="product-info">
                     <strong class="product-name">{{ item.productName }}</strong>
@@ -229,6 +294,9 @@ const changePage = (page) => {
                 <td><span class="quantity-tag">{{ item.quantity }}</span></td>
                 <td>{{ formatCurrency(item.price) }}</td>
                 <td class="text-right price-tag">{{ formatCurrency(item.price * item.quantity) }}</td>
+                <td class="text-right">
+                  <button class="btn-icon btn-delete" @click="removeBasketItem((currentPage - 1) * pageSize + index)" title="Eliminar producto">✖</button>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -250,34 +318,45 @@ const changePage = (page) => {
         </div>
       </div>
 
-      <div class="card premium-shadow highlight-card" v-else>
-        <div class="card-header">
-          <h3>✨ Crear o actualizar cesta</h3>
+      <div class="card premium-shadow highlight-card">
+        <div class="card-header flex-between">
+          <h3>{{ currentBasket ? '✏️ Agregar o editar productos' : '✨ Crear o actualizar cesta' }}</h3>
+          <button v-if="currentBasket" class="btn btn-outline" type="button" @click="populateFormFromBasket(currentBasket)">Cargar datos actuales</button>
         </div>
+
         <form @submit.prevent="saveBasket" class="grid-form-basket">
           <div class="input-group full-width">
-            <label>Nombre de usuario</label>
+            <label class="field-label">Nombre de usuario</label>
             <input v-model="form.userName" type="text" placeholder="Ej. swn" required />
+            <small class="field-help">Este nombre identifica la cesta que quieres guardar o actualizar.</small>
           </div>
 
           <div class="items-section full-width">
-            <h4>Artículos de la cesta</h4>
+            <div class="section-title-row">
+              <h4>Artículos de la cesta</h4>
+              <span class="section-pill">Agrega productos uno por uno</span>
+            </div>
 
             <div v-for="(item, index) in form.items" :key="index" class="item-row">
               <div class="input-group">
-                <input v-model="item.productId" type="text" placeholder="Product ID" required />
+                <label class="field-label">ID del producto</label>
+                <input v-model="item.productId" type="text" placeholder="Ej. 001A" required />
               </div>
               <div class="input-group">
-                <input v-model="item.productName" type="text" placeholder="Nombre producto" required />
+                <label class="field-label">Nombre del producto</label>
+                <input v-model="item.productName" type="text" placeholder="Ej. Camisa negra" required />
               </div>
               <div class="input-group">
-                <input v-model="item.quantity" type="number" min="1" placeholder="Cantidad" required />
+                <label class="field-label">Cantidad</label>
+                <input v-model="item.quantity" type="number" min="1" placeholder="1" required />
               </div>
               <div class="input-group">
-                <input v-model="item.price" type="number" step="0.01" min="0" placeholder="Precio" required />
+                <label class="field-label">Precio</label>
+                <input v-model="item.price" type="number" step="0.01" min="0" placeholder="0.00" required />
               </div>
               <div class="input-group">
-                <input v-model="item.color" type="text" placeholder="Color" required />
+                <label class="field-label">Color</label>
+                <input v-model="item.color" type="text" placeholder="Ej. Negro" required />
               </div>
               <button type="button" class="btn-icon btn-delete" @click="removeItemField(index)" v-if="form.items.length > 1" title="Quitar ítem">✖</button>
             </div>
@@ -287,7 +366,7 @@ const changePage = (page) => {
 
           <div class="form-actions full-width">
             <button type="submit" class="btn btn-action" :disabled="isSaving">
-              {{ isSaving ? 'Guardando...' : 'Guardar / sincronizar cesta' }}
+              {{ isSaving ? 'Guardando...' : currentBasket ? 'Guardar cambios' : 'Guardar / sincronizar cesta' }}
             </button>
           </div>
         </form>
@@ -297,7 +376,7 @@ const changePage = (page) => {
         <div class="card-header">
           <h3>🧩 Estado de la experiencia</h3>
         </div>
-        <p class="empty-state">Busca un usuario para ver el carrito, o crea uno nuevo desde el formulario premium.</p>
+        <p class="empty-state">Busca un usuario para ver el carrito, o crea uno nuevo desde el formulario. Todo está optimizado para móvil y escritorio.</p>
       </div>
     </div>
   </div>
@@ -508,6 +587,39 @@ input {
   font-size: 0.95rem;
 }
 
+.field-label {
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #c7d2fe;
+  font-weight: 700;
+}
+
+.field-help {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.section-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.section-pill {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(129, 140, 248, 0.16);
+  color: #c7d2fe;
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
 input:focus {
   outline: none;
   border-color: rgba(129, 140, 248, 0.85);
@@ -712,6 +824,18 @@ input:focus {
 }
 
 @media (max-width: 768px) {
+  .app-wrapper {
+    padding: 20px 12px;
+  }
+
+  .card {
+    padding: 18px;
+  }
+
+  .title {
+    font-size: 1.7rem;
+  }
+
   .search-controls {
     flex-direction: column;
   }
@@ -733,5 +857,16 @@ input:focus {
     flex-direction: column;
     align-items: flex-start;
   }
+
+  .card-actions {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+.card-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 </style>
